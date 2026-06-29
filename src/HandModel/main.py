@@ -1,11 +1,9 @@
 import time
 import cv2
 import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision, BaseOptions
-from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
-from mediapipe.tasks.python.components.containers.landmark import NormalizedLandmark
-
+from mediapipe.tasks.python import BaseOptions, vision
+from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode, drawing_utils
+from mediapipe.tasks.python.vision.drawing_utils import draw_landmarks
 
 shared_state = None
 shared_state_timestamp = None
@@ -23,13 +21,12 @@ def callback(result, output_image, timestamp_ms):
 
     print(f"Num Hands Detected: {len(result.hand_landmarks)}")
 
-
-base_options = BaseOptions(model_asset_path='hand_landmarker.task')
+base_options = BaseOptions(model_asset_path='../hand_landmarker.task')
 
 options = HandLandmarkerOptions(
     base_options = base_options,
     running_mode =  RunningMode.LIVE_STREAM,
-    num_hands = 1,
+    num_hands = 2,
     min_hand_detection_confidence = 0.5,
     min_hand_presence_confidence = 0.5,
     min_tracking_confidence = 0.5,
@@ -56,12 +53,36 @@ with HandLandmarker.create_from_options(options) as landmarker:
             if shared_state is not None and len(shared_state.hand_landmarks) > 0:
 
                 h, w, _ = frame.shape
+                hand_connections = vision.HandLandmarksConnections.HAND_CONNECTIONS
 
+                # Draw connection lines
+                draw_landmarks(
+                    image=frame,
+                    landmark_list=shared_state.hand_landmarks[0],
+                    connections=hand_connections,
+                    is_drawing_landmarks=False
+                )
+
+                # Draw landmark dots
                 for landmark in shared_state.hand_landmarks[0]:
-                    
                     cx = int(landmark.x * w)
                     cy = int(landmark.y * h)
                     cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
+
+                # If 2 hands are present
+                if len(shared_state.hand_landmarks) > 1:
+                    draw_landmarks(
+                        image=frame,
+                        landmark_list=shared_state.hand_landmarks[1],
+                        connections=hand_connections,
+                        is_drawing_landmarks=False
+                    )
+
+                    # Draw landmark dots
+                    for landmark in shared_state.hand_landmarks[1]:
+                        cx = int(landmark.x * w)
+                        cy = int(landmark.y * h)
+                        cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
 
             cv2.imshow('Video', frame) # Show frame
 
