@@ -6,7 +6,7 @@ Desktop application for hands-free computer interaction via real-time webcam han
 recognition. Detected gestures map to system commands, hotkeys, and workspace switching.
 
 C++ GUI (Dear ImGui) for C++ experience. Python backend reusing existing MediaPipe Tasks work.
-Primary development on Linux (Ubuntu / POP!_OS).
+Primary development on Linux (Fedora).
 
 ---
 
