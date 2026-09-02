@@ -6,6 +6,7 @@
 // - Getting Started      https://dearimgui.com/getting-started
 // - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
 // - Introduction, links and more at the top of imgui.cpp
+#include <iostream>
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -33,6 +34,28 @@
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+}
+
+void button_panel_content() {
+
+    // TO-DO: 
+    // - Add Scroll feature if window too small for buttons to be visible.
+    // - Add secondary window when "Add New gesture" is pressed
+    // - Add secondary window when "Edit gesture" is pressed
+
+    int button_x_size = ImGui::GetWindowSize().x / 1.2;
+    int button_y_size = 70;
+
+    ImGui::SetCursorPos(ImVec2(button_x_size/9, 250));
+    if (ImGui::Button("Add New Gesture", ImVec2(button_x_size, button_y_size))) {
+
+    }
+
+    ImGui::SetCursorPos(ImVec2(button_x_size/9, 450));
+    if (ImGui::Button("Edit Gestures", ImVec2(button_x_size, button_y_size))) {
+        
+    }
+
 }
 
 // Variables
@@ -73,7 +96,7 @@ int main(int, char**)
 
     // Create window with graphics context
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ only
-    GLFWwindow* window = glfwCreateWindow((int)(1280 * main_scale), (int)(800 * main_scale), "Lets learn how to make GUIs", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow((int)(1280 * main_scale), (int)(800 * main_scale), "Gesture Commands", nullptr, nullptr);
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
@@ -92,7 +115,8 @@ int main(int, char**)
 
     // Setup scaling
     ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameRounding = 10.0f; // rounded edges of the buttons/ sliders in the windows
+    style.FrameRounding = 2.0f; // rounded edges of the buttons/ sliders in the windows
+    style.FontSizeBase = 30.0f; 
 
     // ImGuiStyle& style = ImGui::GetStyle();
     style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
@@ -127,7 +151,7 @@ int main(int, char**)
     //IM_ASSERT(font != nullptr);
 
     // Custom Font
-    std::string fontPath = std::string(PROJECT_ROOT) + "/gui/fonts/Letters-for-Learners.ttf";
+    std::string fontPath = std::string(PROJECT_ROOT) + "/gui/fonts/PerfectPenmanship.ttf";
     io.Fonts->AddFontFromFileTTF(fontPath.c_str());
 
     // Our state
@@ -173,7 +197,9 @@ int main(int, char**)
         ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.20f, viewport->Size.y));
         ImGui::SetNextWindowPos(ImVec2(2 % 2 ? 0 : viewport->Size.x - viewport->Size.x * 0.20f, 2 / 2 ? 0 : viewport->Size.y)); // Put window in the top right
         ImGui::Begin("Button Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
-        
+
+        button_panel_content();
+
         ImGui::End(); // BUTTON WINDOW END
 
         // Rendering
