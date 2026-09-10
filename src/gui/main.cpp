@@ -36,7 +36,64 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-void button_panel_content() {
+#define _CRT_SECURE_NO_WARNINGS
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+bool LoadTextureFromMemory(const void* data, size_t data_size, GLuint* out_texture, int* out_width, int* out_height)
+{
+    // Load from file
+    int image_width = 0;
+    int image_height = 0;
+    unsigned char* image_data = stbi_load_from_memory((const unsigned char*)data, (int)data_size, &image_width, &image_height, NULL, 4);
+    if (image_data == NULL)
+        return false;
+
+    // Create a OpenGL texture identifier
+    GLuint image_texture;
+    glGenTextures(1, &image_texture);
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+
+    // Setup filtering parameters for display
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload pixels into texture
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    stbi_image_free(image_data);
+
+    *out_texture = image_texture;
+    *out_width = image_width;
+    *out_height = image_height;
+
+    return true;
+}
+
+// Open and read a file, then forward to LoadTextureFromMemory()
+bool LoadTextureFromFile(const char* file_name, GLuint* out_texture, int* out_width, int* out_height)
+{
+    FILE* f = fopen(file_name, "rb");
+    if (f == NULL)
+        return false;
+    fseek(f, 0, SEEK_END);
+    size_t file_size = (size_t)ftell(f);
+    if (file_size == 1)
+        return false;
+    fseek(f, 0, SEEK_SET);
+    void* file_data = IM_ALLOC(file_size);
+    fread(file_data, 1, file_size, f);
+    fclose(f);
+    bool ret = LoadTextureFromMemory(file_data, file_size, out_texture, out_width, out_height);
+    IM_FREE(file_data);
+    return ret;
+}
+
+void detection_window_content() {
+
+}
+
+void button_panel_content(bool &show_add_gesture, bool &show_edit_gesture) {
 
     // TO-DO: 
     // - Add Scroll feature if window too small for buttons to be visible.
@@ -48,12 +105,12 @@ void button_panel_content() {
 
     ImGui::SetCursorPos(ImVec2(button_x_size/9, 250));
     if (ImGui::Button("Add New Gesture", ImVec2(button_x_size, button_y_size))) {
-
+        show_add_gesture = true;
     }
 
     ImGui::SetCursorPos(ImVec2(button_x_size/9, 450));
     if (ImGui::Button("Edit Gestures", ImVec2(button_x_size, button_y_size))) {
-        
+        show_edit_gesture = true;
     }
 
 }
@@ -108,6 +165,7 @@ int main(int, char**)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -117,6 +175,13 @@ int main(int, char**)
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameRounding = 2.0f; // rounded edges of the buttons/ sliders in the windows
     style.FontSizeBase = 30.0f; 
+
+        // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
 
     // ImGuiStyle& style = ImGui::GetStyle();
     style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
@@ -157,6 +222,15 @@ int main(int, char**)
     // Our state
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    bool show_add_gesture = false;
+    bool show_edit_gesture = false;
+
+    int my_image_width = 640;
+    int my_image_height = 480;
+    GLuint my_image_texture = 1;
+    bool ret = LoadTextureFromFile("../src/cat-test-image.jpg", &my_image_texture, &my_image_width, &my_image_height);
+    IM_ASSERT(ret);
+
     // Main loop
 #ifdef __EMSCRIPTEN__
     // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
@@ -188,7 +262,12 @@ int main(int, char**)
         // HAND DETECTION VIDEO DISPLAY WINDOW
         ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.80f, viewport->Size.y));
         ImGui::SetNextWindowPos(viewport->Pos);
-        ImGui::Begin("Hand Detection Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+        ImGui::Begin("Hand Detection Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
+
+
+        ImGui::Text("pointer = %x", my_image_texture);
+        ImGui::Text("size = %d x %d", my_image_width, my_image_height);
+        ImGui::Image((ImTextureID)(intptr_t)my_image_texture, ImVec2(my_image_width, my_image_height));
 
         ImGui::End(); // VIDEO DISPLAY WINDOW END
 
@@ -196,11 +275,33 @@ int main(int, char**)
         // BUTTON WINDOW
         ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.20f, viewport->Size.y));
         ImGui::SetNextWindowPos(ImVec2(2 % 2 ? 0 : viewport->Size.x - viewport->Size.x * 0.20f, 2 / 2 ? 0 : viewport->Size.y)); // Put window in the top right
-        ImGui::Begin("Button Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+        ImGui::Begin("Button Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-        button_panel_content();
+        button_panel_content(show_add_gesture, show_edit_gesture);
 
         ImGui::End(); // BUTTON WINDOW END
+
+        // ADD GESTURE WINDOW
+        if (show_add_gesture)
+        {
+            ImGui::SetNextWindowSize(ImVec2(600, 500));
+            // ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::Begin("Add a new Gesture!", &show_add_gesture, ImGuiWindowFlags_NoResize);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+            if (ImGui::Button("Close Me"))
+                show_add_gesture = false;
+            ImGui::End();
+        }
+
+        // EDIT GESTURE WINDOW
+        if (show_edit_gesture)
+        {
+            ImGui::SetNextWindowSize(ImVec2(600, 500));
+            // ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::Begin("Edit Gesture!", &show_edit_gesture, ImGuiWindowFlags_NoResize);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+            if (ImGui::Button("Close Me"))
+                show_edit_gesture = false;
+            ImGui::End();
+        }
 
         // Rendering
         ImGui::Render();
@@ -211,8 +312,19 @@ int main(int, char**)
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+                // Update and Render additional Platform Windows
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            GLFWwindow* backup_current_context = glfwGetCurrentContext();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            glfwMakeContextCurrent(backup_current_context);
+        }
+
+
         glfwSwapBuffers(window);
     }
+
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
 #endif

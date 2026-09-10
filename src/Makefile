@@ -78,3 +78,9 @@ clean:
 	rm -rf $(OBJ_DIR) $(EXE)
 
 .PHONY: all clean
+
+#find cppzmq wrapper, installed by make of cppzmq
+find_package(cppzmq)
+target_link_libraries(Gesture_Commands cppzmq)
+# Or use static library to link
+target_link_libraries(Gesture_Commands cppzmq-static)
