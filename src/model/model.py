@@ -1,6 +1,9 @@
 import time
 import cv2
+import json
 import mediapipe as mp
+import os
+from subprocess import call
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.vision.drawing_utils import draw_landmarks
@@ -14,6 +17,16 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 shared_state = None
 shared_state_timestamp = None
 
+def read_gesture_db():
+    '''
+    Read JSON file and save as global variable
+    '''
+    global data
+    with open("commands.json", "r") as file:
+        data = json.load(file)
+    
+read_gesture_db()
+
 def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
     global shared_state
     global shared_state_timestamp
@@ -21,17 +34,22 @@ def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_
     shared_state = result
     shared_state_timestamp = timestamp_ms
 
-    # print(f"Num Hands Detected: {len(result.hand_landmarks)}")
-    # print(f"Gesture Recognition result: {result.gestures}")
-    # for hand in result.gestures:
-    #     if hand[0] != "None":
-    #         print(hand[1])
-    # print(type(result.gestures[0]))
-    # print(result.gestures[0][2])
-    print(result.gestures)
-    print(type(result.gestures[0][0]))
-    print(result.gestures[0][0].category_name)
 
+    # Print name of gesture detected
+    for hand in result.gestures:
+        category_detected = hand[0].category_name
+        if category_detected != "None":
+            # If debug = true
+            # print(f"\nCategory Detected: {category_detected}")
+            execture_command(category_detected)
+
+def execture_command(category_detected):
+    for gesture in data['preset-gestures']:
+        if gesture['category-name'] == category_detected:
+
+            # Execute command from JSON file to shell
+            call(f'echo {gesture['command-to-execute']}', shell=True)
+            
 
 def main(debug=False):
     options = GestureRecognizerOption(

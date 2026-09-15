@@ -1,0 +1,12 @@
+{
+    "preset-gestures": [
+        {
+            "category-name":"Thumb_Up",
+            "command-to-execute":"thumby-uppy"
+        },
+        {
+            "category-name":"Thumb_Down",
+            "command-to-execute":"thumby-Downy"
+        }
+    ]
+}
