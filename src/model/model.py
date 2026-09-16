@@ -22,10 +22,21 @@ def read_gesture_db():
     Read JSON file and save as global variable
     '''
     global data
-    with open("commands.json", "r") as file:
-        data = json.load(file)
+    with open("commands.json", "r") as json_file: 
+        data = json.load(json_file)
     
 read_gesture_db()
+
+def edit_db(gesture_to_change: str, new_command: str):
+    # Change command 
+    if data['preset-gestures']['category-name'] == gesture_to_change:
+        data['preset-gestures']['command-to-execute'] = new_command
+
+    # Save new command in json file. (For long-term storage)
+    with open("commands.json", "w") as json_file:
+        json.dump(json.dumps(data, indent=3), json_file)
+
+    read_gesture_db() # Re-decalre global db variable
 
 def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
     global shared_state
@@ -45,10 +56,10 @@ def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_
 
 def execture_command(category_detected):
     for gesture in data['preset-gestures']:
-        if gesture['category-name'] == category_detected:
+        if gesture['category-name'] == category_detected and gesture['command-to-execute'] == "None":
 
             # Execute command from JSON file to shell
-            call(f'echo {gesture['command-to-execute']}', shell=True)
+            call(f'{gesture['command-to-execute']}', shell=True)
             
 
 def main(debug=False):
