@@ -8,6 +8,15 @@
 # MSYS2:
 #   pacman -S --noconfirm --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-glfw
 #
+# You will also need ZeroMQ + its C++ header-only bindings (cppzmq):
+# Fedora:
+#   sudo dnf install zeromq-devel cppzmq-devel
+# Ubuntu/Pop!_OS:
+#   sudo apt install libzmq3-dev
+#   (cppzmq's zmq.hpp is header-only; if your distro has no cppzmq package,
+#    drop zmq.hpp from https://github.com/zeromq/cppzmq into a location on
+#    your include path, e.g. gui/)
+#
 
 #CXX = g++
 #CXX = clang++
@@ -46,8 +55,8 @@ CXXFLAGS += -DPROJECT_ROOT=\"$(PROJECT_ROOT)\"
 
 ifeq ($(UNAME_S), Linux)
 	ECHO_MESSAGE = "Linux"
-	LIBS += $(LINUX_GL_LIBS) `pkg-config --static --libs glfw3`
-	CXXFLAGS += `pkg-config --cflags glfw3`
+	LIBS += $(LINUX_GL_LIBS) `pkg-config --static --libs glfw3` `pkg-config --libs libzmq` -pthread
+	CXXFLAGS += `pkg-config --cflags glfw3` `pkg-config --cflags libzmq` -pthread
 	CFLAGS = $(CXXFLAGS)
 endif
 
@@ -78,9 +87,3 @@ clean:
 	rm -rf $(OBJ_DIR) $(EXE)
 
 .PHONY: all clean
-
-# #find cppzmq wrapper, installed by make of cppzmq
-# find_package(cppzmq)
-# target_link_libraries(Gesture_Commands cppzmq)
-# # Or use static library to link
-# target_link_libraries(Gesture_Commands cppzmq-static)

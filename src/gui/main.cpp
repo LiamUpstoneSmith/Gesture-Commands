@@ -13,6 +13,11 @@
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
 #include <string>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <vector>
+#include <zmq.hpp>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -87,6 +92,48 @@ bool LoadTextureFromFile(const char* file_name, GLuint* out_texture, int* out_wi
     bool ret = LoadTextureFromMemory(file_data, file_size, out_texture, out_width, out_height);
     IM_FREE(file_data);
     return ret;
+}
+
+// --- Live video frame streaming over ZeroMQ ---
+// model.py runs a PUB socket that continuously publishes JPEG-encoded webcam
+// frames. We connect a SUB socket to it here and pull frames on a dedicated
+// background thread, so a slow or momentarily stalled network read never
+// blocks the ImGui render loop (which needs to stay responsive at all times).
+struct LatestFrame
+{
+    std::mutex mutex;
+    std::vector<unsigned char> jpeg_bytes;
+    bool has_new_frame = false;
+};
+
+static LatestFrame g_latest_frame;
+static std::atomic<bool> g_zmq_running{true};
+
+void zmq_frame_receiver_thread()
+{
+    zmq::context_t context(1);
+    zmq::socket_t subscriber(context, zmq::socket_type::sub);
+
+    // Only ever keep the single most recent frame queued. If the GUI can't
+    // keep up with the incoming frame rate, we want to drop old frames and
+    // show the newest one rather than fall behind and display stale video.
+    subscriber.set(zmq::sockopt::conflate, 1);
+    subscriber.set(zmq::sockopt::rcvtimeo, 100); // ms - lets us re-check g_zmq_running periodically
+    subscriber.set(zmq::sockopt::subscribe, "");
+    subscriber.connect("tcp://localhost:5556");
+
+    while (g_zmq_running.load())
+    {
+        zmq::message_t message;
+        auto result = subscriber.recv(message, zmq::recv_flags::none);
+        if (!result)
+            continue; // recv timed out; loop back and check g_zmq_running
+
+        std::lock_guard<std::mutex> lock(g_latest_frame.mutex);
+        const unsigned char* data = static_cast<const unsigned char*>(message.data());
+        g_latest_frame.jpeg_bytes.assign(data, data + message.size());
+        g_latest_frame.has_new_frame = true;
+    }
 }
 
 void detection_window_content() {
@@ -230,6 +277,11 @@ int main(int, char**)
     GLuint my_image_texture = 1;
     bool ret = LoadTextureFromFile("../src/cat-test-image.jpg", &my_image_texture, &my_image_width, &my_image_height);
     IM_ASSERT(ret);
+    // The image above is only a placeholder shown until the first real frame
+    // arrives from model.py - it gets replaced as soon as the SUB thread
+    // below receives something.
+
+    std::thread zmq_thread(zmq_frame_receiver_thread);
 
     // Main loop
 #ifdef __EMSCRIPTEN__
@@ -259,14 +311,48 @@ int main(int, char**)
         ImGui::NewFrame();
         ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+        // Pull in the latest frame published by model.py, if a new one has arrived.
+        {
+            std::vector<unsigned char> jpeg_copy;
+            bool got_new_frame = false;
+            {
+                std::lock_guard<std::mutex> lock(g_latest_frame.mutex);
+                if (g_latest_frame.has_new_frame)
+                {
+                    jpeg_copy = g_latest_frame.jpeg_bytes;
+                    g_latest_frame.has_new_frame = false;
+                    got_new_frame = true;
+                }
+            }
+
+            if (got_new_frame)
+            {
+                GLuint new_texture;
+                int new_width, new_height;
+                if (LoadTextureFromMemory(jpeg_copy.data(), jpeg_copy.size(), &new_texture, &new_width, &new_height))
+                {
+                    glDeleteTextures(1, &my_image_texture); // free the old GPU texture before swapping it out
+                    my_image_texture = new_texture;
+                    my_image_width = new_width;
+                    my_image_height = new_height;
+                }
+            }
+        }
+
         // HAND DETECTION VIDEO DISPLAY WINDOW
         ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.80f, viewport->Size.y));
         ImGui::SetNextWindowPos(viewport->Pos);
         ImGui::Begin("Hand Detection Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
 
-        ImGui::Text("pointer = %x", my_image_texture);
-        ImGui::Text("size = %d x %d", my_image_width, my_image_height);
+        // ImGui::Text("pointer = %x", my_image_texture);
+        // ImGui::Text("size = %d x %d", my_image_width, my_image_height);
+        
+        // 640 x 480 image.
+        int image_x_size = ImGui::GetWindowSize().x / 5;
+        int image_y_size = ImGui::GetWindowSize().y / 5;
+        ImGui::SetCursorPos(ImVec2(image_x_size, image_y_size));
+
         ImGui::Image((ImTextureID)(intptr_t)my_image_texture, ImVec2(my_image_width, my_image_height));
 
         ImGui::End(); // VIDEO DISPLAY WINDOW END
@@ -330,6 +416,9 @@ int main(int, char**)
 #endif
 
     // Cleanup
+    g_zmq_running = false;
+    zmq_thread.join();
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

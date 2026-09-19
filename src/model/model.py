@@ -3,6 +3,7 @@ import cv2
 import json
 import mediapipe as mp
 import os
+import zmq
 from subprocess import call
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -50,19 +51,17 @@ def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_
     for hand in result.gestures:
         category_detected = hand[0].category_name
         if category_detected != "None":
-            # If debug = true
-            # print(f"\nCategory Detected: {category_detected}")
             execture_command(category_detected)
 
 def execture_command(category_detected):
     for gesture in data['preset-gestures']:
-        if gesture['category-name'] == category_detected and gesture['command-to-execute'] == "None":
+        if gesture['category-name'] == category_detected and gesture['command-to-execute'] != "None":
 
             # Execute command from JSON file to shell
             call(f'{gesture['command-to-execute']}', shell=True)
             
 
-def main(debug=False):
+def main():
     options = GestureRecognizerOption(
         base_options=BaseOptions(model_asset_path='gesture_recognizer.task'),
         running_mode= VisionRunningMode.LIVE_STREAM,
@@ -72,6 +71,12 @@ def main(debug=False):
         min_tracking_confidence=0.5,
         result_callback=callback
     )
+
+    # ZeroMQ PUBLISH socket
+    zmq_context = zmq.Context()
+    video_socket = zmq_context.socket(zmq.PUB)
+    video_socket.setsockopt(zmq.SNDHWM, 1) # never queue more than 1 frame
+    video_socket.bind("tcp://*:5556")
 
     with GestureRecognizer.create_from_options(options) as recognizer:
 
@@ -129,15 +134,18 @@ def main(debug=False):
                             cy = int(landmark.y * h)
                             cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
 
-                if debug:
-                    cv2.imshow("Video", frame)  # Show frame
+                success, jpeg_buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if success:
+                    video_socket.send(jpeg_buffer.tobytes())
 
             if cv2.waitKey(1) == ord("q"):
                 break
 
+    video_socket.close()
+    zmq_context.term()
     cam.release()
     cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    main(debug=True)
+    main()
