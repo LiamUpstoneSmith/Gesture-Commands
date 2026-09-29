@@ -23,7 +23,7 @@ def read_gesture_db():
     Read JSON file and save as global variable
     '''
     global data
-    with open("commands.json", "r") as json_file: 
+    with open("src/model/commands.json", "r") as json_file: 
         data = json.load(json_file)
     
 read_gesture_db()
@@ -34,7 +34,7 @@ def edit_db(gesture_to_change: str, new_command: str):
         data['preset-gestures']['command-to-execute'] = new_command
 
     # Save new command in json file. (For long-term storage)
-    with open("commands.json", "w") as json_file:
+    with open("src/model/commands.json", "w") as json_file:
         json.dump(json.dumps(data, indent=3), json_file)
 
     read_gesture_db() # Re-decalre global db variable
@@ -63,7 +63,7 @@ def execture_command(category_detected):
 
 def main():
     options = GestureRecognizerOption(
-        base_options=BaseOptions(model_asset_path='gesture_recognizer.task'),
+        base_options=BaseOptions(model_asset_path='src/model/gesture_recognizer.task'),
         running_mode= VisionRunningMode.LIVE_STREAM,
         num_hands=2,
         min_hand_detection_confidence=0.5,
