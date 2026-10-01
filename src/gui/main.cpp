@@ -18,6 +18,7 @@
 #include <atomic>
 #include <vector>
 #include <zmq.hpp>
+#include <memory>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -162,8 +163,71 @@ void button_panel_content(bool &show_add_gesture, bool &show_edit_gesture) {
 
 }
 
-// Variables
+class ControlClient
+{
+public:
+    ControlClient() : context_(1) { try_open(); }
 
+    // Returns a message suitable for showing in the GUI.
+    std::string send_change(const std::string& gesture, const std::string& command)
+    {
+        if (!socket_ && !try_open())
+            return "Control socket unavailable (could not bind port 5555)";
+
+        try
+        {
+            const std::string payload = gesture + "$$" + command;
+
+            auto sent = socket_->send(zmq::buffer(payload), zmq::send_flags::none);
+            if (!sent)
+                return "Python is not connected yet (send timed out)";
+
+            zmq::message_t reply;
+            auto got = socket_->recv(reply, zmq::recv_flags::none);
+            if (!got)
+            {
+                // A REQ that sent but never got a reply refuses to send again.
+                // Throw the socket away and make a fresh one (Lazy Pirate).
+                socket_.reset();
+                try_open();
+                return "No reply from Python (timed out)";
+            }
+            return reply.to_string();
+        }
+        catch (const zmq::error_t& e)
+        {
+            socket_.reset();
+            try_open();
+            return std::string("ZeroMQ error: ") + e.what();
+        }
+    }
+
+private:
+    bool try_open()
+    {
+        try
+        {
+            socket_ = std::make_unique<zmq::socket_t>(context_, zmq::socket_type::req);
+            socket_->set(zmq::sockopt::linger, 0);    // never hang on exit or reset
+            socket_->set(zmq::sockopt::sndtimeo, 500); // ms
+            socket_->set(zmq::sockopt::rcvtimeo, 1000); // ms
+            socket_->bind("tcp://*:5555");
+            return true;
+        }
+        catch (const zmq::error_t& e)
+        {
+            fprintf(stderr, "Control socket error: %s\n", e.what());
+            socket_.reset();
+            return false;
+        }
+    }
+
+    // Order matters: members are destroyed in reverse, so the socket is
+    // destroyed before the context (a context cannot finish closing while
+    // sockets are still open).
+    zmq::context_t context_;
+    std::unique_ptr<zmq::socket_t> socket_;
+};
 
 // Main code
 int main(int, char**)
@@ -271,6 +335,14 @@ int main(int, char**)
 
     bool show_add_gesture = false;
     bool show_edit_gesture = false;
+
+    static const char* gesture_names[] = { "Closed_Fist", "Open_Palm", "Pointing_Up",
+                                        "Thumb_Down", "Thumb_Up", "Victory", "ILoveYou" };
+    int  selected_gesture = 0;
+    char new_command[256] = "";
+    std::string status_message;
+
+    ControlClient control_client;
 
     int my_image_width = 640;
     int my_image_height = 480;
@@ -382,10 +454,21 @@ int main(int, char**)
         if (show_edit_gesture)
         {
             ImGui::SetNextWindowSize(ImVec2(600, 500));
-            // ImGui::SetNextWindowPos(ImVec2(0, 0));
-            ImGui::Begin("Edit Gesture!", &show_edit_gesture, ImGuiWindowFlags_NoResize);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            if (ImGui::Button("Close Me"))
-                show_edit_gesture = false;
+            ImGui::Begin("Edit Gesture!", &show_edit_gesture, ImGuiWindowFlags_NoResize);
+
+            ImGui::Combo("Gesture", &selected_gesture, gesture_names, IM_ARRAYSIZE(gesture_names));
+            ImGui::InputText("New command", new_command, IM_ARRAYSIZE(new_command));
+
+            if (ImGui::Button("Apply Change"))
+            {
+                if (new_command[0] == '\0')
+                    status_message = "Enter a command first";
+                else
+                    status_message = control_client.send_change(gesture_names[selected_gesture], new_command);
+            }
+
+            ImGui::TextWrapped("%s", status_message.c_str());
+
             ImGui::End();
         }
 

@@ -1,32 +1,32 @@
 {
-    "preset-gestures": [
-        {
-            "category-name":"Thumb_Up",
-            "command-to-execute":"None"
-        },
-        {
-            "category-name":"Thumb_Down",
-            "command-to-execute":"None"
-        },
-        {
-            "category-name":"Closed_Fist",
-            "command-to-execute":"None"
-        },
-        {
-            "category-name":"Open_Palm",
-            "command-to-execute":"None"
-        },
-        {
-            "category-name":"Pointing_Up",
-            "command-to-execute":"None"
-        },
-        {
-            "category-name":"Victory",
-            "command-to-execute":"None"
-        },
-        {
-            "category-name":"ILoveYou",
-            "command-to-execute":"None"
-        }
-    ]
+   "preset-gestures": [
+      {
+         "category-name": "Thumb_Up",
+         "command-to-execute": "None"
+      },
+      {
+         "category-name": "Thumb_Down",
+         "command-to-execute": "None"
+      },
+      {
+         "category-name": "Closed_Fist",
+         "command-to-execute": "None"
+      },
+      {
+         "category-name": "Open_Palm",
+         "command-to-execute": "None"
+      },
+      {
+         "category-name": "Pointing_Up",
+         "command-to-execute": "None"
+      },
+      {
+         "category-name": "Victory",
+         "command-to-execute": "None"
+      },
+      {
+         "category-name": "ILoveYou",
+         "command-to-execute": "None"
+      }
+   ]
 }

@@ -29,15 +29,19 @@ def read_gesture_db():
 read_gesture_db()
 
 def edit_db(gesture_to_change: str, new_command: str):
-    # Change command 
-    if data['preset-gestures']['category-name'] == gesture_to_change:
-        data['preset-gestures']['command-to-execute'] = new_command
+    for gesture in data['preset-gestures']:
+        if gesture['category-name'] == gesture_to_change:
+            gesture['command-to-execute'] = new_command
+            break
+    else:
+        # Loop finished without a break: no gesture matched
+        raise ValueError(f"Unknown gesture: {gesture_to_change}")
 
-    # Save new command in json file. (For long-term storage)
+    # Save new command in json file (long-term storage)
     with open("src/model/commands.json", "w") as json_file:
-        json.dump(json.dumps(data, indent=3), json_file)
+        json.dump(data, json_file, indent=3)
 
-    read_gesture_db() # Re-decalre global db variable
+
 
 def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
     global shared_state
@@ -59,7 +63,6 @@ def execture_command(category_detected):
 
             # Execute command from JSON file to shell
             call(f'{gesture['command-to-execute']}', shell=True)
-            
 
 def main():
     options = GestureRecognizerOption(
@@ -76,7 +79,11 @@ def main():
     zmq_context = zmq.Context()
     video_socket = zmq_context.socket(zmq.PUB)
     video_socket.setsockopt(zmq.SNDHWM, 1) # never queue more than 1 frame
-    video_socket.bind("tcp://*:5556")
+    video_socket.bind("tcp://localhost:5556")
+
+    # ZeroMQ REP socket
+    gesture_socket = zmq_context.socket(zmq.REP)
+    gesture_socket.connect("tcp://localhost:5555")
 
     with GestureRecognizer.create_from_options(options) as recognizer:
 
@@ -138,9 +145,20 @@ def main():
                 if success:
                     video_socket.send(jpeg_buffer.tobytes())
 
+                if gesture_socket.poll(0):
+                    try:
+                        message = gesture_socket.recv_string()
+                        gesture, command = message.split("$$", 1)
+                        edit_db(gesture, command)
+                        reply = "UPDATED"
+                    except Exception as e:
+                        reply = f"ERR:{e}"
+                    gesture_socket.send_string(reply)
+
             if cv2.waitKey(1) == ord("q"):
                 break
 
+    gesture_socket.close()
     video_socket.close()
     zmq_context.term()
     cam.release()
