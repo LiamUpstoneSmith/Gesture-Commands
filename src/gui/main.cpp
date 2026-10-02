@@ -137,30 +137,24 @@ void zmq_frame_receiver_thread()
     }
 }
 
-void detection_window_content() {
-
-}
 
 void button_panel_content(bool &show_add_gesture, bool &show_edit_gesture) {
-
-    // TO-DO: 
-    // - Add Scroll feature if window too small for buttons to be visible.
-    // - Add secondary window when "Add New gesture" is pressed
-    // - Add secondary window when "Edit gesture" is pressed
-
-    int button_x_size = ImGui::GetWindowSize().x / 1.2;
-    int button_y_size = 70;
-
-    ImGui::SetCursorPos(ImVec2(button_x_size/9, 250));
-    if (ImGui::Button("Add New Gesture", ImVec2(button_x_size, button_y_size))) {
-        show_add_gesture = true;
-    }
-
-    ImGui::SetCursorPos(ImVec2(button_x_size/9, 450));
-    if (ImGui::Button("Edit Gestures", ImVec2(button_x_size, button_y_size))) {
+ 
+    const char* button_text = "Edit Gestures";
+    ImVec2 text_size = ImGui::CalcTextSize(button_text);
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec2 button_size = ImVec2(
+        text_size.x + style.FramePadding.x * 3.0f,
+        text_size.y + style.FramePadding.y * 10.0f
+    );
+ 
+    ImVec2 win_size = ImGui::GetWindowSize();
+    ImGui::SetCursorPos(ImVec2((win_size.x - button_size.x) * 0.5f,
+                               (win_size.y - button_size.y) * 0.5f));
+    if (ImGui::Button(button_text, button_size)) {
         show_edit_gesture = true;
     }
-
+ 
 }
 
 class ControlClient
@@ -264,7 +258,7 @@ int main(int, char**)
 
     // Create window with graphics context
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ only
-    GLFWwindow* window = glfwCreateWindow((int)(1280 * main_scale), (int)(800 * main_scale), "Gesture Commands", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow((int)(1000 * main_scale), (int)(625 * main_scale), "Gesture Commands", nullptr, nullptr); // 1280, 800  // 1000, 625
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
@@ -327,7 +321,7 @@ int main(int, char**)
     //IM_ASSERT(font != nullptr);
 
     // Custom Font
-    std::string fontPath = std::string(PROJECT_ROOT) + "/gui/fonts/PerfectPenmanship.ttf";
+    std::string fontPath = std::string(PROJECT_ROOT) + "/gui/fonts/monospace-bold.ttf";
     io.Fonts->AddFontFromFileTTF(fontPath.c_str());
 
     // Our state
@@ -347,7 +341,7 @@ int main(int, char**)
     int my_image_width = 640;
     int my_image_height = 480;
     GLuint my_image_texture = 1;
-    bool ret = LoadTextureFromFile("../src/cat-test-image.jpg", &my_image_texture, &my_image_width, &my_image_height);
+    bool ret = LoadTextureFromFile("../src/model-loading.png", &my_image_texture, &my_image_width, &my_image_height);
     IM_ASSERT(ret);
     // The image above is only a placeholder shown until the first real frame
     // arrives from model.py - it gets replaced as soon as the SUB thread
@@ -411,50 +405,53 @@ int main(int, char**)
             }
         }
 
+        const float video_height = viewport->Size.y * 0.80f;
+        const float button_height = viewport->Size.y - video_height;
+
         // HAND DETECTION VIDEO DISPLAY WINDOW
-        ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.80f, viewport->Size.y));
+        ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, video_height));
         ImGui::SetNextWindowPos(viewport->Pos);
         ImGui::Begin("Hand Detection Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-
-        // ImGui::Text("pointer = %x", my_image_texture);
-        // ImGui::Text("size = %d x %d", my_image_width, my_image_height);
-        
         // 640 x 480 image.
-        int image_x_size = ImGui::GetWindowSize().x / 5;
-        int image_y_size = ImGui::GetWindowSize().y / 5;
-        ImGui::SetCursorPos(ImVec2(image_x_size, image_y_size));
-
-        ImGui::Image((ImTextureID)(intptr_t)my_image_texture, ImVec2(my_image_width, my_image_height));
+        {
+            ImVec2 win_size = ImGui::GetWindowSize();
+            float margin = 10.0f;
+            float scale = 1.0f;
+            float avail_w = win_size.x - 2.0f * margin;
+            float avail_h = win_size.y - 2.0f * margin;
+            if (my_image_width > avail_w)  scale = avail_w / my_image_width;
+            if (my_image_height * scale > avail_h) scale = avail_h / my_image_height;
+ 
+            ImVec2 img_size(my_image_width * scale, my_image_height * scale);
+            ImGui::SetCursorPos(ImVec2((win_size.x - img_size.x) * 0.5f,
+                                       (win_size.y - img_size.y) * 0.5f));
+            ImGui::Image((ImTextureID)(intptr_t)my_image_texture, img_size);
+        }
 
         ImGui::End(); // VIDEO DISPLAY WINDOW END
 
 
         // BUTTON WINDOW
-        ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.20f, viewport->Size.y));
-        ImGui::SetNextWindowPos(ImVec2(2 % 2 ? 0 : viewport->Size.x - viewport->Size.x * 0.20f, 2 / 2 ? 0 : viewport->Size.y)); // Put window in the top right
+        ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, button_height));
+        ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + video_height));
         ImGui::Begin("Button Window", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBringToFrontOnFocus);
-
+ 
         button_panel_content(show_add_gesture, show_edit_gesture);
 
         ImGui::End(); // BUTTON WINDOW END
 
-        // ADD GESTURE WINDOW
-        if (show_add_gesture)
-        {
-            ImGui::SetNextWindowSize(ImVec2(600, 500));
-            // ImGui::SetNextWindowPos(ImVec2(0, 0));
-            ImGui::Begin("Add a new Gesture!", &show_add_gesture, ImGuiWindowFlags_NoResize);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            if (ImGui::Button("Close Me"))
-                show_add_gesture = false;
-            ImGui::End();
-        }
-
         // EDIT GESTURE WINDOW
         if (show_edit_gesture)
         {
-            ImGui::SetNextWindowSize(ImVec2(600, 500));
-            ImGui::Begin("Edit Gesture!", &show_edit_gesture, ImGuiWindowFlags_NoResize);
+            ImVec2 modal_size = ImVec2(600, 500);
+            ImVec2 center_pos = ImVec2(
+                viewport->Pos.x + (viewport->Size.x - modal_size.x) * 0.5f,
+                viewport->Pos.y + (viewport->Size.y - modal_size.y) * 0.5f
+            );
+            ImGui::SetNextWindowPos(center_pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(modal_size);
+            ImGui::Begin("Edit Gesture!", &show_edit_gesture, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
             ImGui::Combo("Gesture", &selected_gesture, gesture_names, IM_ARRAYSIZE(gesture_names));
             ImGui::InputText("New command", new_command, IM_ARRAYSIZE(new_command));
