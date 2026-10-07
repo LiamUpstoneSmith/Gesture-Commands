@@ -2,31 +2,31 @@
    "preset-gestures": [
       {
          "category-name": "Thumb_Up",
-         "command-to-execute": "pactl set-sink-volume @DEFAULT_SINK@ +5%"
+         "command-to-execute": "None"
       },
       {
          "category-name": "Thumb_Down",
-         "command-to-execute": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+         "command-to-execute": "None"
       },
       {
          "category-name": "Closed_Fist",
-         "command-to-execute": "code ~/Desktop/Projects/\nxdotool key super+Left\nfirefox\nxdotool key super+Right"
+         "command-to-execute": "None"
       },
       {
          "category-name": "Open_Palm",
-         "command-to-execute": "playerctl play-pause"
+         "command-to-execute": "None"
       },
       {
          "category-name": "Pointing_Up",
-         "command-to-execute": "discord\nxdotool key super+shift+Left\nxdotool key super+Up\nsteam\nxdotool key super+Up"
+         "command-to-execute": "None"
       },
       {
          "category-name": "Victory",
-         "command-to-execute": "flameshot gui"
+         "command-to-execute": "None"
       },
       {
          "category-name": "ILoveYou",
-         "command-to-execute": "kitty"
+         "command-to-execute": "None"
       }
    ]
 }
