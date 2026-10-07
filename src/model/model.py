@@ -4,7 +4,8 @@ import json
 import mediapipe as mp
 import os
 import zmq
-from subprocess import call
+import threading
+from subprocess import Popen
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.vision.drawing_utils import draw_landmarks
@@ -17,6 +18,12 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 
 shared_state = None
 shared_state_timestamp = None
+
+COOLDOWN_SECONDS = 3.0
+
+last_execution_time = 0.0   # monotonic time of the last command that ran
+last_category = "None"      # gesture seen on the previous callback
+command_lock = threading.Lock()
 
 def read_gesture_db():
     '''
@@ -43,26 +50,41 @@ def edit_db(gesture_to_change: str, new_command: str):
 
 
 
-def callback(result: GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
-    global shared_state
-    global shared_state_timestamp
+def callback(result, output_image: mp.Image, timestamp_ms: int):
+    global shared_state, shared_state_timestamp, last_category
 
     shared_state = result
     shared_state_timestamp = timestamp_ms
 
-
-    # Print name of gesture detected
+    # Pick the first hand that has a real gesture
+    category_detected = "None"
     for hand in result.gestures:
-        category_detected = hand[0].category_name
-        if category_detected != "None":
-            execture_command(category_detected)
+        if hand[0].category_name != "None":
+            category_detected = hand[0].category_name
+            break
 
-def execture_command(category_detected):
-    for gesture in data['preset-gestures']:
-        if gesture['category-name'] == category_detected and gesture['command-to-execute'] != "None":
+    # Edge trigger: only act when the gesture changes
+    if category_detected != "None" and category_detected != last_category:
+        execute_command(category_detected)
 
-            # Execute command from JSON file to shell
-            call(f'{gesture['command-to-execute']}', shell=True)
+    last_category = category_detected
+
+def execute_command(category_detected):
+    global last_execution_time
+
+    with command_lock:
+        now = time.monotonic()
+        if now - last_execution_time < COOLDOWN_SECONDS:
+            return  # still cooling down
+
+        for gesture in data['preset-gestures']:
+            if (gesture['category-name'] == category_detected
+                    and gesture['command-to-execute'] != "None"):
+                last_execution_time = now
+                # Popen does not block, so the callback thread stays free
+                Popen(gesture['command-to-execute'], shell=True,
+                      start_new_session=True)
+                break
 
 def main():
     options = GestureRecognizerOption(

@@ -14,3 +14,5 @@ trap 'kill "$MODEL_PID" 2>/dev/null' EXIT
 
 cd src
 ./demo_app
+
+exit

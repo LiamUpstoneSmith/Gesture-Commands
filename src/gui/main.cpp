@@ -273,13 +273,20 @@ int main(int, char**)
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
 
     // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
+    // ImGui::StyleColorsDark();
+    ImGui::StyleColorsLight();
 
     // Setup scaling
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameRounding = 2.0f; // rounded edges of the buttons/ sliders in the windows
     style.FontSizeBase = 30.0f; 
+    
+    style.Colors[ImGuiCol_WindowBg] = ImVec4((52/ 255.0f), (78/ 255.0f), (65/255.0f), 1.0f); 
+    style.Colors[ImGuiCol_Text] = ImVec4((218/ 255.0f), (215/ 255.0f), (205/255.0f), 1.0f);
+    style.Colors[ImGuiCol_Button] = ImVec4((88/ 255.0f), (129/ 255.0f), (87/255.0f), 1.0f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4((53/ 255.0f), (85/ 255.0f), (60/255.0f), 1.0f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4((58/ 255.0f), (90/ 255.0f), (64/255.0f), 1.0f);
+
 
         // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -442,6 +449,8 @@ int main(int, char**)
         ImGui::End(); // BUTTON WINDOW END
 
         // EDIT GESTURE WINDOW
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4((163/255.0f), (177/255.0f), (138/255.0f), 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4((52/ 255.0f), (78/ 255.0f), (65/255.0f), 1.0f));
         if (show_edit_gesture)
         {
             ImVec2 modal_size = ImVec2(600, 500);
@@ -451,11 +460,21 @@ int main(int, char**)
             );
             ImGui::SetNextWindowPos(center_pos, ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowSize(modal_size);
-            ImGui::Begin("Edit Gesture!", &show_edit_gesture, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+            ImGui::Begin("Edit Gestures", &show_edit_gesture, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
-            ImGui::Combo("Gesture", &selected_gesture, gesture_names, IM_ARRAYSIZE(gesture_names));
-            ImGui::InputText("New command", new_command, IM_ARRAYSIZE(new_command));
+            float win_width = ImGui::GetWindowWidth();
+            float combo_size = (win_width/2)-150.0f;
 
+            ImGui::SetCursorPos(ImVec2(combo_size, 74.0f));
+            ImGui::SetNextItemWidth(300.0f);
+            ImGui::Combo("##Gesture", &selected_gesture, gesture_names, IM_ARRAYSIZE(gesture_names));
+
+
+            ImGui::SetCursorPos(ImVec2(20.0f, 150.0f));
+            ImGui::InputTextMultiline("##New Command", new_command, IM_ARRAYSIZE(new_command), ImVec2((ImGui::GetWindowWidth()-40.0f), (ImGui::GetTextLineHeightWithSpacing()*3)));
+
+            ImGui::SetCursorPos(ImVec2(((win_width/2)-105.0f), 282.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(255.0f, 255.0f, 255.0f, 1.0f));
             if (ImGui::Button("Apply Change"))
             {
                 if (new_command[0] == '\0')
@@ -463,11 +482,15 @@ int main(int, char**)
                 else
                     status_message = control_client.send_change(gesture_names[selected_gesture], new_command);
             }
+            ImGui::PopStyleColor();
 
+            ImGui::SetCursorPos(ImVec2(10.0f, 370.0f));
             ImGui::TextWrapped("%s", status_message.c_str());
 
-            ImGui::End();
+            ImGui::End(); // EDIT GESTURE WINDOW END
         }
+        ImGui::PopStyleColor();
+        ImGui::PopStyleColor();
 
         // Rendering
         ImGui::Render();
